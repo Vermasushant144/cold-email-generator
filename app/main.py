@@ -25,6 +25,8 @@ def create_streamlit_app(llm, portfolio, clean_text):
         except Exception as e:
             st.error(f"An Error Occurred: {e}")
 
+     st.title("Created by Sushant Verma")
+
 
 if __name__ == "__main__":
     chain = Chain()
