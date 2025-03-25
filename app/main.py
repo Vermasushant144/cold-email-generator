@@ -1,31 +1,35 @@
-import pandas as pd
-import chromadb
-import uuid
+import streamlit as st
+from langchain_community.document_loaders import WebBaseLoader
+
+from chains import Chain
+from portfolio import Portfolio
+from utils import clean_text
 
 
-class Portfolio:
-    def __init__(self, file_path="app/resource/my_portfolio.csv"):
-        self.file_path = file_path
-        self.data = pd.read_csv(file_path)
-        self.chroma_client = chromadb.PersistentClient('vectorstore')
-        self.collection = self.chroma_client.get_or_create_collection(name="portfolio")
+def create_streamlit_app(llm, portfolio, clean_text):
+    st.title("📧 Cold Mail Generator")
+    url_input = st.text_input("Enter a URL:", value="https://jobs.nike.com/job/R-33460")
+    submit_button = st.button("Submit")
 
-    def load_portfolio(self):
-        if not self.collection.count():
-            for _, row in self.data.iterrows():
-                self.collection.add(
-                    documents=[row["Techstack"]],
-                    metadatas=[{"links": row["Links"]}],
-                    ids=[str(uuid.uuid4())]
-                )
+    if submit_button:
+        try:
+            loader = WebBaseLoader([url_input])
+            data = clean_text(loader.load().pop().page_content)
+            portfolio.load_portfolio()
+            jobs = llm.extract_jobs(data)
+            for job in jobs:
+                skills = job.get('skills', [])
+                links = portfolio.query_links(skills)
+                email = llm.write_mail(job, links)
+                st.code(email, language='markdown')
+        except Exception as e:
+            st.error(f"An Error Occurred: {e}")
 
-    def query_links(self, skills):
-        if not skills or not isinstance(skills, list):
-            return []  # Return empty list if no valid skills
 
-        results = self.collection.query(
-            query_texts=[str(skill) for skill in skills],  # Convert skills to strings
-            n_results=2
-        )
+if __name__ == "__main__":
+    chain = Chain()
+    portfolio = Portfolio()
+    st.set_page_config(layout="wide", page_title="Cold Email Generator", page_icon="📧")
+    create_streamlit_app(chain, portfolio, clean_text)
 
-        return results.get('metadatas', [])
+
